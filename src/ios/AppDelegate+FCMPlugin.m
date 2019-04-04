@@ -32,7 +32,19 @@
 #define NSFoundationVersionNumber_iOS_9_x_Max 1299
 #endif
 
+#define kDelegateKey @"delegate"
+
 @implementation AppDelegate (MCPlugin)
+
+#if defined(__IPHONE_10_0) && __IPHONE_OS_VERSION_MAX_ALLOWED >= __IPHONE_10_0
+- (void)setDelegate:(id)delegate {
+    objc_setAssociatedObject(self, kDelegateKey, delegate, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+}
+
+- (id)delegate {
+    return objc_getAssociatedObject(self, kDelegateKey);
+}
+#endif
 
 static NSData *lastPush;
 NSString *const kGCMMessageIDKey = @"gcm.message_id";
@@ -84,6 +96,7 @@ NSString *const kGCMMessageIDKey = @"gcm.message_id";
             }];
             
             // For iOS 10 display notification (sent via APNS)
+            self.delegate = [UNUserNotificationCenter currentNotificationCenter].delegate;
             [UNUserNotificationCenter currentNotificationCenter].delegate = self;
             // For iOS 10 data message (sent via FCM)
             [FIRMessaging messaging].remoteMessageDelegate = self;
@@ -114,6 +127,14 @@ NSString *const kGCMMessageIDKey = @"gcm.message_id";
 - (void)userNotificationCenter:(UNUserNotificationCenter *)center
        willPresentNotification:(UNNotification *)notification
          withCompletionHandler:(void (^)(UNNotificationPresentationOptions))completionHandler {
+    [self.delegate userNotificationCenter:center
+        willPresentNotification:notification
+        withCompletionHandler:completionHandler];
+
+    if (![notification.request.trigger isKindOfClass:UNPushNotificationTrigger.class]) {
+        return;
+    }
+
     // Print message ID.
     NSDictionary *userInfo = notification.request.content.userInfo;
     if (userInfo[kGCMMessageIDKey]) {
@@ -138,6 +159,14 @@ NSString *const kGCMMessageIDKey = @"gcm.message_id";
 - (void)userNotificationCenter:(UNUserNotificationCenter *)center
 didReceiveNotificationResponse:(UNNotificationResponse *)response
          withCompletionHandler:(void (^)())completionHandler {
+    [self.delegate userNotificationCenter:center
+        didReceiveNotificationResponse:response
+        withCompletionHandler:completionHandler];
+
+    if (![response.notification.request.trigger isKindOfClass:UNPushNotificationTrigger.class]) {
+        return;
+    }
+
     NSDictionary *userInfo = response.notification.request.content.userInfo;
     if (userInfo[kGCMMessageIDKey]) {
         NSLog(@"Message ID 2: %@", userInfo[kGCMMessageIDKey]);
